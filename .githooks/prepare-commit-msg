@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -e
+
+MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# merge/squash/rebase 등 자동 생성 메시지는 건드리지 않기
+case "$COMMIT_SOURCE" in
+  merge|squash|commit) exit 0 ;;
+esac
+
+first_line="$(head -n 1 "$MSG_FILE" | tr -d '\r')"
+if [[ -z "$first_line" ]]; then exit 0; fi
+
+# 이미 "이모지 태그:" 형태면 패스
+if [[ "$first_line" =~ ^[[:space:]]*[✨🐛💄📝♻️🎨✅🔨⚠️🔁][[:space:]]+[A-Za-z]+:\  ]]; then
+  exit 0
+fi
+
+# 타입 필수: feat: 제목
+if [[ "$first_line" != *:* ]]; then
+  echo "❌ 타입 필수! 예: feat: 플레이어 이동 구현" >&2
+  exit 1
+fi
+
+type_part="${first_line%%:*}"
+rest_part="${first_line#*:}"
+
+type="$(echo "$type_part" | tr '[:upper:]' '[:lower:]' | xargs)"
+rest="$(echo "$rest_part" | xargs)"
+
+emoji=""
+tag=""
+
+case "$type" in
+  feat)     emoji="✨"; tag="Feat" ;;
+  fix)      emoji="🐛"; tag="Fix" ;;
+  design)   emoji="💄"; tag="Design" ;;
+  docs)     emoji="📝"; tag="Docs" ;;
+  refactor) emoji="♻️"; tag="Refactor" ;;
+  style)    emoji="🎨"; tag="Style" ;;
+  test)     emoji="✅"; tag="Test" ;;
+  chore)    emoji="🔨"; tag="Chore" ;;
+  hotfix)   emoji="⚠️"; tag="HotFix" ;;
+  merge)    emoji="🔁"; tag="Merge" ;;
+  *)
+    echo "❌ 허용되지 않은 타입: '$type'" >&2
+    echo "허용 타입: feat/fix/design/docs/refactor/style/test/chore/hotfix/merge" >&2
+    exit 1
+    ;;
+esac
+
+new_first="${emoji} ${tag}: ${rest}"
+
+tmp="$(mktemp)"
+{
+  echo "$new_first"
+  tail -n +2 "$MSG_FILE"
+} > "$tmp"
+
+cat "$tmp" > "$MSG_FILE"
+rm "$tmp"
